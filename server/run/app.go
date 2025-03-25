@@ -1,20 +1,29 @@
 package run
 
 import (
+	"gitlab.com/kirasmir2/vogo/server/internal/handlers"
+	"gitlab.com/kirasmir2/vogo/server/internal/rout"
 	"gitlab.com/kirasmir2/vogo/server/internal/server"
 	"log/slog"
-	"net/http"
 	"os"
 )
 
 type App struct {
 	log *slog.Logger
-	srv *http.Server
+	srv *server.AudioServer
+}
+
+func NewApp() *App {
+	return &App{}
 }
 
 //TODO: Конструктор
 
-func (a *App) Init() {
+func (a *App) Start() {
+	a.srv.MustStart()
+}
+
+func (a *App) Init() *App {
 	// инициализация логгера
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		AddSource: true,
@@ -22,6 +31,13 @@ func (a *App) Init() {
 	}))
 	a.log = logger
 	// инициализация сервера
-	srv := server.NewServer("8080")
-	a.srv = srv.Server
+	srv := server.NewServer("8080", logger)
+	a.srv = srv
+	// инициализация контроллера
+	controller := handlers.NewController(logger)
+	// инициализация роутера
+	router := rout.NewRout(controller)
+	// настройка сервера
+	a.srv.Server.Handler = router
+	return a
 }

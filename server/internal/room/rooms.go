@@ -28,6 +28,7 @@ func (r *Rooms) AddRoom(name string) error {
 	r.mux.Lock()
 	r.room[name] = NewRoom()
 	r.mux.Unlock()
-	r.log.Info("Комната успешно создана", slog.String("name", name))
+	//TODO: придумать что-то с логгированием
+	fmt.Println("Комната успешно создана", slog.String("name", name))
 	return nil
 }
