@@ -1,4 +1,4 @@
-package rout
+package router
 
 import (
 	"github.com/go-chi/chi"
@@ -7,8 +7,8 @@ import (
 
 func NewRout(controller *handlers.Controller) chi.Router {
 	r := chi.NewRouter()
-	r.Post("/room/{name}", controller.CreateRoomRequestHandler)
-	r.Get("/test", controller.HandleWebSocket)
+	r.Post("/room/{name}", controller.CreateRoomHandler)
+	r.Get("/room/connect", controller.HandleWebSocket)
 
 	return r
 }

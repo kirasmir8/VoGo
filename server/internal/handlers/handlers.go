@@ -25,7 +25,7 @@ func NewController(log *slog.Logger) *Controller {
 	return &Controller{rooms: room.NewRooms(), log: log}
 }
 
-func (c *Controller) CreateRoomRequestHandler(w http.ResponseWriter, r *http.Request) {
+func (c *Controller) CreateRoomHandler(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	if name == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -45,6 +45,19 @@ func (c *Controller) CreateRoomRequestHandler(w http.ResponseWriter, r *http.Req
 }
 
 func (c *Controller) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
+	// валидация запроса
+	roomName := r.URL.Query().Get("room")
+	userName := r.URL.Query().Get("name")
+	if roomName == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Для подключения необходимо указать название комнаты"))
+		return
+	} else if userName == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Для подключения заполните имя пользователя"))
+		return
+	}
+
 	//Преобразование http-запроса в WebSocket
 	conn, err := upgrade.Upgrade(w, r, nil)
 	if err != nil {
@@ -54,6 +67,14 @@ func (c *Controller) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 	c.log.Info("Подключение клиента", conn.RemoteAddr().String())
 
+	err = c.rooms.AddParticipant(userName, roomName, conn)
+	if err != nil {
+		c.log.Error(err.Error())
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
 	//test ехо сообщение
 	for {
 		_, message, err := conn.ReadMessage()
@@ -61,10 +82,6 @@ func (c *Controller) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 			c.log.Error(err.Error())
 			break
 		}
-		err = conn.WriteMessage(websocket.BinaryMessage, message)
-		if err != nil {
-			c.log.Error(err.Error())
-			break
-		}
+		c.rooms.Room[roomName].BroadCastMessage(message)
 	}
 }

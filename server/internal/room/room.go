@@ -2,7 +2,7 @@ package room
 
 import (
 	"fmt"
-	"gitlab.com/kirasmir2/vogo/server/internal/client"
+	"gitlab.com/kirasmir2/vogo/server/internal/participant"
 	"log/slog"
 	"os/user"
 	"sync"
@@ -10,26 +10,27 @@ import (
 
 type Room struct {
 	log          *slog.Logger
-	mux          sync.Mutex
-	Participants map[string]client.Participant
+	mux          *sync.Mutex
+	Participants map[string]*participant.Participant
 }
 
 func NewRoom() *Room {
 	return &Room{
-		Participants: make(map[string]client.Participant),
-		mux:          sync.Mutex{},
+		Participants: make(map[string]*participant.Participant),
+		mux:          &sync.Mutex{},
 	}
 }
 
-func (r *Room) AddParticipants(userInfo *user.User, participants client.Participant) error {
+func (r *Room) AddParticipants(nameUser string, participants *participant.Participant) error {
 	r.mux.Lock()
 	defer r.mux.Unlock()
-	_, ok := r.Participants[userInfo.Name]
+	_, ok := r.Participants[nameUser]
 	if ok {
-		return fmt.Errorf("Пользователь %s уже существует", userInfo.Name)
+		return fmt.Errorf("пользователь %s уже существует", nameUser)
 	}
 	// добавляем участника в комнату
-	r.Participants[userInfo.Name] = participants
+	r.Participants[nameUser] = participants
+	fmt.Printf("пользователь %s успешно подключился")
 	return nil
 }
 
@@ -41,5 +42,16 @@ func (r *Room) RemoveParticipants(userInfo *user.User) error {
 		delete(r.Participants, userInfo.Name)
 		return nil
 	}
-	return fmt.Errorf("Пользователь %s не найден", userInfo.Name)
+	return fmt.Errorf("пользователь %s не найден", userInfo.Name)
+}
+
+// BroadCastMessage - широковещательное сообщение всем участникам в данной комнате
+func (r *Room) BroadCastMessage(message []byte) {
+	for name, participant := range r.Participants {
+		err := participant.SendMessage(message)
+		// ошибка означает проблемы с пользователем, удаляем его из комнаты
+		if err != nil {
+			delete(r.Participants, name)
+		}
+	}
 }

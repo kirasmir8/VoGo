@@ -2,8 +2,8 @@ package run
 
 import (
 	"gitlab.com/kirasmir2/vogo/server/internal/handlers"
-	"gitlab.com/kirasmir2/vogo/server/internal/rout"
-	"gitlab.com/kirasmir2/vogo/server/internal/server"
+	"gitlab.com/kirasmir2/vogo/server/internal/infrastructure/router"
+	"gitlab.com/kirasmir2/vogo/server/internal/infrastructure/server"
 	"log/slog"
 	"os"
 )
@@ -36,7 +36,7 @@ func (a *App) Init() *App {
 	// инициализация контроллера
 	controller := handlers.NewController(logger)
 	// инициализация роутера
-	router := rout.NewRout(controller)
+	router := router.NewRout(controller)
 	// настройка сервера
 	a.srv.Server.Handler = router
 	return a
