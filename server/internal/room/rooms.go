@@ -8,28 +8,28 @@ import (
 	"sync"
 )
 
-type Rooms struct {
-	Room map[string]*Room
-	log  *slog.Logger
-	mux  sync.Mutex
+type ActiveRooms struct {
+	Rooms map[string]*Room
+	log   *slog.Logger
+	mux   sync.Mutex
 }
 
-func NewRooms() *Rooms {
-	return &Rooms{
-		Room: make(map[string]*Room),
-		mux:  sync.Mutex{},
+func NewRooms() *ActiveRooms {
+	return &ActiveRooms{
+		Rooms: make(map[string]*Room),
+		mux:   sync.Mutex{},
 	}
 }
 
 // AddRoom - добавляет комнату в общий список комнат
-func (r *Rooms) AddRoom(name string) error {
+func (r *ActiveRooms) AddRoom(name string) error {
 	const op = "internal.handlers"
 
-	if _, ok := r.Room[name]; ok {
-		return fmt.Errorf("Комната %s уже существует: %w", name, op)
+	if _, ok := r.Rooms[name]; ok {
+		return fmt.Errorf("комната %s уже существует: %s", name, op)
 	}
 	r.mux.Lock()
-	r.Room[name] = NewRoom()
+	r.Rooms[name] = NewRoom()
 	r.mux.Unlock()
 	//TODO: придумать что-то с логгированием
 	fmt.Println("Комната успешно создана", slog.String("name", name))
@@ -37,15 +37,26 @@ func (r *Rooms) AddRoom(name string) error {
 }
 
 // AddParticipant - добавляет участника в комнату
-func (r *Rooms) AddParticipant(participantName string, roomName string, conn *websocket.Conn) error {
-	if _, ok := r.Room[roomName]; !ok {
-		return fmt.Errorf("комнаты %s не существует", roomName)
-	} else if _, ok := r.Room[roomName].Participants[participantName]; ok {
-		return fmt.Errorf("участник %s уже существует", roomName)
-	}
+func (r *ActiveRooms) AddParticipant(participantName string, roomName string, conn *websocket.Conn) error {
 	r.mux.Lock()
-	r.Room[roomName].Participants[participantName] = participant.InitParticipant(conn)
+	room, ok := r.Rooms[roomName]
 	r.mux.Unlock()
-	fmt.Printf("Участник %s успешно зашёл в комнату", participantName)
+	if !ok {
+		return fmt.Errorf("комнаты %s не существует", roomName)
+	}
+	p := participant.InitParticipant(conn)
+	if err := room.AddParticipant(participantName, p); err != nil {
+		return err
+	}
+	fmt.Println("Участник добавлен", "user", participantName, "room", roomName)
 	return nil
+}
+
+// GetRooms - возвращает список активных комнат
+func (r *ActiveRooms) GetRooms() []string {
+	activeRooms := make([]string, 0, len(r.Rooms))
+	for room, _ := range r.Rooms {
+		activeRooms = append(activeRooms, room)
+	}
+	return activeRooms
 }

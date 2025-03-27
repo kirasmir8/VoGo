@@ -21,7 +21,16 @@ func NewRoom() *Room {
 	}
 }
 
-func (r *Room) AddParticipants(nameUser string, participants *participant.Participant) error {
+// GetAllParticipants - возвращает список участников данного лобби
+func (r *Room) GetAllParticipants() []string {
+	participants := make([]string, 0, len(r.Participants))
+	for part := range r.Participants {
+		participants = append(participants, part)
+	}
+	return participants
+}
+
+func (r *Room) AddParticipant(nameUser string, participants *participant.Participant) error {
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	_, ok := r.Participants[nameUser]
@@ -34,7 +43,7 @@ func (r *Room) AddParticipants(nameUser string, participants *participant.Partic
 	return nil
 }
 
-func (r *Room) RemoveParticipants(userInfo *user.User) error {
+func (r *Room) RemoveParticipant(userInfo *user.User) error {
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	_, ok := r.Participants[userInfo.Name]
