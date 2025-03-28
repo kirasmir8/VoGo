@@ -1,18 +1,18 @@
 package server
 
 import (
-	"log/slog"
+	"go.uber.org/zap"
 	"net/http"
 )
 
 // AudioServer - структура сервера
 type AudioServer struct {
 	Server *http.Server
-	log    *slog.Logger
+	log    *zap.Logger
 }
 
 // NewServer - создание нового сервера
-func NewServer(port string, logger *slog.Logger) *AudioServer {
+func NewServer(port string, logger *zap.Logger) *AudioServer {
 	return &AudioServer{
 		Server: &http.Server{
 			Addr: "0.0.0.0:" + port,
@@ -22,7 +22,8 @@ func NewServer(port string, logger *slog.Logger) *AudioServer {
 }
 
 func (as *AudioServer) MustStart() {
-	as.log.Info("Starting server", slog.String("host", as.Server.Addr))
+	as.log.Info("Starting server", zap.String("address", as.Server.Addr))
+
 	err := as.Server.ListenAndServe()
 	if err != nil {
 		panic(err)

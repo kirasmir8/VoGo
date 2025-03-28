@@ -4,21 +4,22 @@ import (
 	"encoding/json"
 	"github.com/go-chi/chi"
 	"github.com/gorilla/websocket"
+	"gitlab.com/kirasmir2/vogo/server/internal/infrastructure/api"
 	"gitlab.com/kirasmir2/vogo/server/internal/model"
 	"gitlab.com/kirasmir2/vogo/server/internal/room"
-	"log/slog"
+	"go.uber.org/zap"
 	"net/http"
 )
 
 type Controller struct {
 	rooms    *room.ActiveRooms
-	log      *slog.Logger
+	log      *zap.Logger
 	upgrader *websocket.Upgrader
 }
 
-func NewController(log *slog.Logger) *Controller {
+func NewController(log *zap.Logger) *Controller {
 	return &Controller{
-		rooms: room.NewRooms(),
+		rooms: room.NewRooms(log),
 		log:   log,
 		// TODO: Увеличить буферы до 4096 при деплои
 		upgrader: &websocket.Upgrader{
@@ -32,23 +33,26 @@ func NewController(log *slog.Logger) *Controller {
 }
 
 func (c *Controller) CreateRoomHandler(w http.ResponseWriter, r *http.Request) {
+	//TODO: Обрезать пробелы справа и слева
 	name := chi.URLParam(r, "name")
 	if name == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("укажите имя комнаты"))
+		api.StatusMessageResponse(
+			w,
+			http.StatusBadRequest,
+			model.Response{Message: "название комнаты не указано"})
 		return
 	}
 
 	err := c.rooms.AddRoom(name)
 	if err != nil {
-		c.log.Error(err.Error())
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(err.Error()))
+		api.StatusMessageResponse(
+			w,
+			http.StatusBadRequest,
+			model.Response{Message: err.Error()})
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(model.Response{Message: "Комната создана"})
+	api.StatusMessageResponse(w, http.StatusOK, model.Response{Message: "Комната успешно создана"})
 }
 
 func (c *Controller) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
@@ -56,27 +60,36 @@ func (c *Controller) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	roomName := r.URL.Query().Get("room")
 	userName := r.URL.Query().Get("name")
 	if roomName == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Для подключения необходимо указать название комнаты"))
+		api.StatusMessageResponse(
+			w,
+			http.StatusBadRequest,
+			model.Response{Message: "Для подключения необходимо указать название комнаты"})
 		return
 	} else if userName == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Для подключения заполните имя пользователя"))
+		api.StatusMessageResponse(
+			w,
+			http.StatusBadRequest,
+			model.Response{Message: "Для подключения необходимо указать имя"})
 		return
 	}
 
 	//Преобразование http-запроса в WebSocket
 	conn, err := c.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		c.log.Error("Ошибка апгрейда соединения", "error", err)
+		c.log.Error("Ошибка апгрейда соединения", zap.Error(err))
 		return
 	}
 	defer conn.Close()
-	c.log.Info("Клиент подключён", "addr", conn.RemoteAddr().String(), "user", userName, "room", roomName)
+	c.log.Info("успешная установка соединения,",
+		zap.String("room", roomName),
+		zap.String("user", userName),
+		zap.String("conn", conn.RemoteAddr().String()))
 
 	if err := c.rooms.AddParticipant(userName, roomName, conn); err != nil {
-		c.log.Error("Ошибка добавления участника", "error", err, "user", userName, "room", roomName)
-		//TODO: добавить ответное сообщение об имени
+		c.log.Error("Ошибка добавления участника",
+			zap.Error(err),
+			zap.String("room", roomName),
+			zap.String("user", userName))
 		return
 	}
 
@@ -84,22 +97,33 @@ func (c *Controller) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
-			c.log.Error(err.Error())
+			c.log.Error(
+				"ошибка отправки сообщения",
+				zap.String("user", userName),
+				zap.String("room", roomName),
+				zap.Error(err))
+			err = c.rooms.Rooms[roomName].RemoveParticipant(userName)
+			if err != nil {
+				c.log.Error(err.Error())
+			}
+			c.log.Info(
+				"участник успешно удален",
+				zap.String("user", userName),
+				zap.String("room", roomName),
+				zap.Error(err))
 			break
 		}
-		c.rooms.Rooms[roomName].BroadCastMessage(message)
+		c.rooms.Rooms[roomName].BroadCastMessage(message, userName)
 	}
 }
 
 func (c *Controller) GetRoomsHandler(w http.ResponseWriter, r *http.Request) {
 	activeRooms := c.rooms.GetRooms()
-
 	res, err := json.Marshal(activeRooms)
 	if err != nil {
-		c.log.Error("Ошибка сериализации комнат", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		c.log.Error("Ошибка сериализации комнат", zap.Error(err))
+		api.StatusMessageResponse(w, http.StatusInternalServerError, nil)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
-	w.Write(res)
+	api.StatusMessageResponse(w, http.StatusOK, res)
 }

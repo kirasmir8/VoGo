@@ -3,21 +3,21 @@ package room
 import (
 	"fmt"
 	"gitlab.com/kirasmir2/vogo/server/internal/participant"
-	"log/slog"
-	"os/user"
+	"go.uber.org/zap"
 	"sync"
 )
 
 type Room struct {
-	log          *slog.Logger
+	log          *zap.Logger
 	mux          *sync.Mutex
 	Participants map[string]*participant.Participant
 }
 
-func NewRoom() *Room {
+func NewRoom(log *zap.Logger) *Room {
 	return &Room{
 		Participants: make(map[string]*participant.Participant),
 		mux:          &sync.Mutex{},
+		log:          log,
 	}
 }
 
@@ -39,25 +39,28 @@ func (r *Room) AddParticipant(nameUser string, participants *participant.Partici
 	}
 	// добавляем участника в комнату
 	r.Participants[nameUser] = participants
-	fmt.Printf("пользователь %s успешно подключился")
 	return nil
 }
 
-func (r *Room) RemoveParticipant(userInfo *user.User) error {
+func (r *Room) RemoveParticipant(name string) error {
 	r.mux.Lock()
 	defer r.mux.Unlock()
-	_, ok := r.Participants[userInfo.Name]
+	_, ok := r.Participants[name]
 	if ok {
-		delete(r.Participants, userInfo.Name)
+		delete(r.Participants, name)
 		return nil
 	}
-	return fmt.Errorf("пользователь %s не найден", userInfo.Name)
+	return fmt.Errorf("пользователь %s не найден", name)
 }
 
 // BroadCastMessage - широковещательное сообщение всем участникам в данной комнате
-func (r *Room) BroadCastMessage(message []byte) {
-	for name, participant := range r.Participants {
-		err := participant.SendMessage(message)
+func (r *Room) BroadCastMessage(message []byte, participantName string) {
+	for name, part := range r.Participants {
+		// TODO: Потом исправить на проверку поулучше
+		if name == participantName {
+			continue
+		}
+		err := part.SendMessage(message)
 		// ошибка означает проблемы с пользователем, удаляем его из комнаты
 		if err != nil {
 			delete(r.Participants, name)

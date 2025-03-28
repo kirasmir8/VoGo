@@ -4,35 +4,34 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"gitlab.com/kirasmir2/vogo/server/internal/participant"
-	"log/slog"
+	"go.uber.org/zap"
 	"sync"
 )
 
 type ActiveRooms struct {
 	Rooms map[string]*Room
-	log   *slog.Logger
+	log   *zap.Logger
 	mux   sync.Mutex
 }
 
-func NewRooms() *ActiveRooms {
+func NewRooms(log *zap.Logger) *ActiveRooms {
 	return &ActiveRooms{
 		Rooms: make(map[string]*Room),
 		mux:   sync.Mutex{},
+		log:   log,
 	}
 }
 
 // AddRoom - добавляет комнату в общий список комнат
 func (r *ActiveRooms) AddRoom(name string) error {
-	const op = "internal.handlers"
-
 	if _, ok := r.Rooms[name]; ok {
-		return fmt.Errorf("комната %s уже существует: %s", name, op)
+		return fmt.Errorf("комната %s уже существует", name)
 	}
 	r.mux.Lock()
-	r.Rooms[name] = NewRoom()
+	r.Rooms[name] = NewRoom(r.log)
 	r.mux.Unlock()
-	//TODO: придумать что-то с логгированием
-	fmt.Println("Комната успешно создана", slog.String("name", name))
+
+	r.log.Info("комната успешно создана", zap.String("name", name))
 	return nil
 }
 
@@ -44,11 +43,11 @@ func (r *ActiveRooms) AddParticipant(participantName string, roomName string, co
 	if !ok {
 		return fmt.Errorf("комнаты %s не существует", roomName)
 	}
-	p := participant.InitParticipant(conn)
+	p := participant.InitParticipant(conn, r.log)
 	if err := room.AddParticipant(participantName, p); err != nil {
 		return err
 	}
-	fmt.Println("Участник добавлен", "user", participantName, "room", roomName)
+	r.log.Info("участник добавлен", zap.String("room", roomName), zap.String("participant", participantName))
 	return nil
 }
 
