@@ -10,6 +10,5 @@ func NewRout(controller *handlers.Controller) chi.Router {
 	r.Post("/room/{name}", controller.CreateRoomHandler)
 	r.Get("/room/connect", controller.HandleWebSocket)
 	r.Get("/rooms", controller.GetRoomsHandler)
-
 	return r
 }
