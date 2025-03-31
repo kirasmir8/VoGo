@@ -22,8 +22,8 @@ func NewController(log *zap.Logger) *Controller {
 		log:   log,
 		// TODO: Увеличить буферы до 4096 при деплои
 		upgrader: &websocket.Upgrader{
-			ReadBufferSize:  1024,
-			WriteBufferSize: 1024,
+			ReadBufferSize:  4096,
+			WriteBufferSize: 4096,
 			CheckOrigin: func(r *http.Request) bool {
 				return true
 			},

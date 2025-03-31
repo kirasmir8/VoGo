@@ -19,7 +19,7 @@ func InitParticipant(conn *websocket.Conn, log *zap.Logger) *Participant {
 // SendMessage отправляет сообщение пользователю
 func (p *Participant) SendMessage(message []byte) error {
 	//TODO: при деплое исправить на бинарный формат
-	if err := p.Conn.WriteMessage(websocket.TextMessage, message); err != nil {
+	if err := p.Conn.WriteMessage(websocket.BinaryMessage, message); err != nil {
 		// в случае ошибки при отправке, прекращаем соединение (если это возможно)
 		p.Conn.Close()
 		return err
