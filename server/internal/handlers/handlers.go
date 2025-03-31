@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"github.com/go-chi/chi"
 	"github.com/gorilla/websocket"
 	"gitlab.com/kirasmir2/vogo/server/internal/infrastructure/api"
@@ -119,11 +118,5 @@ func (c *Controller) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 func (c *Controller) GetRoomsHandler(w http.ResponseWriter, r *http.Request) {
 	activeRooms := c.rooms.GetRooms()
-	res, err := json.Marshal(activeRooms)
-	if err != nil {
-		c.log.Error("Ошибка сериализации комнат", zap.Error(err))
-		api.StatusMessageResponse(w, http.StatusInternalServerError, nil)
-		return
-	}
-	api.StatusMessageResponse(w, http.StatusOK, res)
+	api.StatusMessageResponse(w, http.StatusOK, activeRooms)
 }
